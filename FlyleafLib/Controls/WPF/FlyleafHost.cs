@@ -1,16 +1,13 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Windows.Controls;
 using System.Windows;
-using System.Windows.Media;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-
+using System.Windows.Media;
 using FlyleafLib.MediaPlayer;
-
 using static FlyleafLib.Utils;
 using static FlyleafLib.Utils.NativeMethods;
-
 using Binding = System.Windows.Data.Binding;
 using Brushes = System.Windows.Media.Brushes;
 using Panel = System.Windows.Controls.Panel;
@@ -52,7 +49,7 @@ namespace FlyleafLib.Controls.WPF
             ResizeSensitivity               Pixels sensitivity from the window's edges
 
             DetachedPosition				[Custom, TopLeft, TopCenter, TopRight, CenterLeft, CenterCenter, CenterRight, BottomLeft, BottomCenter, BottomRight]
-            DetachedPositionMargin			[X, Y, CX, CY]						| Does not affect the Size / Eg. No point to provide both X/CX 	
+            DetachedPositionMargin			[X, Y, CX, CY]						| Does not affect the Size / Eg. No point to provide both X/CX
             DetachedFixedPosition			[X, Y]								| If not set same as attached, if remember only first time
             DetachedFixedSize				[CX, CY]							| If not set same as attached, if remember only first time
             DetachedRememberPosition		[False, True]
@@ -83,56 +80,63 @@ namespace FlyleafLib.Controls.WPF
          */
 
         #region Properties / Variables
-        public Window       Owner           { get; private set; }
-        public Window       Surface         { get; private set; }
-        public IntPtr       SurfaceHandle   { get; private set; }
-        public IntPtr       OverlayHandle   { get; private set; }
-        public IntPtr       OwnerHandle     { get; private set; }
-        public int          ResizingSide    { get; private set; }
 
-        public int          UniqueId        { get; private set; }
-        public bool         Disposed        { get; private set; }
+        public Window Owner { get; private set; }
+        public Window Surface { get; private set; }
+        public IntPtr SurfaceHandle { get; private set; }
+        public IntPtr OverlayHandle { get; private set; }
+        public IntPtr OwnerHandle { get; private set; }
+        public int ResizingSide { get; private set; }
 
-        static int idGenerator;
-        bool isSurfaceClosing;
-        static bool isDesginMode;
-        Grid dMain, dHost, dSurface, dOverlay; // Design Mode Grids
-        bool preventContentUpdate;
-        int panPrevX, panPrevY;
-        bool ownedRestoreToMaximize;
-        WindowState prevSurfaceWindowState = WindowState.Normal;
+        public int UniqueId { get; private set; }
+        public bool Disposed { get; private set; }
 
-        Matrix matrix;
-        Point zeroPoint = new Point(0, 0);
-        Point mouseLeftDownPoint = new Point(0, 0);
-        Point mouseMoveLastPoint = new Point(0, 0);
+        private static int idGenerator;
+        private bool isSurfaceClosing;
+        private static bool isDesginMode;
+        private Grid dMain, dHost, dSurface, dOverlay; // Design Mode Grids
+        private bool preventContentUpdate;
+        private int panPrevX, panPrevY;
+        private bool ownedRestoreToMaximize;
+        private WindowState prevSurfaceWindowState = WindowState.Normal;
 
-        Point beforeFullScreenPos = new Point(100, 100);
-        Size beforeFullScreenSize = new Size(100, 100);
+        private Matrix matrix;
+        private Point zeroPoint = new Point(0, 0);
+        private Point mouseLeftDownPoint = new Point(0, 0);
+        private Point mouseMoveLastPoint = new Point(0, 0);
 
-        static Rect rectRandom = new Rect(1, 2, 3, 4);
-        Rect rectDetachedLast = Rect.Empty;
-        Rect rectIntersectLast = rectRandom;
-        Rect rectInitLast = rectRandom;
+        private Point beforeFullScreenPos = new Point(100, 100);
+        private Size beforeFullScreenSize = new Size(100, 100);
 
-        private class FlyleafHostDropWrap { public FlyleafHost FlyleafHost; } // To allow non FlyleafHosts to drag & drop
+        private static Rect rectRandom = new Rect(1, 2, 3, 4);
+        private Rect rectDetachedLast = Rect.Empty;
+        private Rect rectIntersectLast = rectRandom;
+        private Rect rectInitLast = rectRandom;
+
+        private class FlyleafHostDropWrap
+        { public FlyleafHost FlyleafHost; } // To allow non FlyleafHosts to drag & drop
+
         protected readonly LogHandler Log;
-        #endregion
+
+        #endregion Properties / Variables
 
         #region Dependency Properties
+
         public AvailableWindows OpenOnDrop
         {
             get { return (AvailableWindows)GetValue(OpenOnDropProperty); }
             set { SetValue(OpenOnDropProperty, value); }
         }
+
         public static readonly DependencyProperty OpenOnDropProperty =
             DependencyProperty.Register(nameof(OpenOnDrop), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface, new PropertyChangedCallback(DropChanged)));
-        
+
         public AvailableWindows SwapOnDrop
         {
             get { return (AvailableWindows)GetValue(SwapOnDropProperty); }
             set { SetValue(SwapOnDropProperty, value); }
         }
+
         public static readonly DependencyProperty SwapOnDropProperty =
             DependencyProperty.Register(nameof(SwapOnDrop), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface, new PropertyChangedCallback(DropChanged)));
 
@@ -141,6 +145,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(SwapDragEnterOnShiftProperty); }
             set { SetValue(SwapDragEnterOnShiftProperty, value); }
         }
+
         public static readonly DependencyProperty SwapDragEnterOnShiftProperty =
             DependencyProperty.Register(nameof(SwapDragEnterOnShift), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
 
@@ -149,6 +154,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(ToggleFullScreenOnDoubleClickProperty); }
             set { SetValue(ToggleFullScreenOnDoubleClickProperty, value); }
         }
+
         public static readonly DependencyProperty ToggleFullScreenOnDoubleClickProperty =
             DependencyProperty.Register(nameof(ToggleFullScreenOnDoubleClick), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
 
@@ -157,6 +163,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(PanMoveOnCtrlProperty); }
             set { SetValue(PanMoveOnCtrlProperty, value); }
         }
+
         public static readonly DependencyProperty PanMoveOnCtrlProperty =
             DependencyProperty.Register(nameof(PanMoveOnCtrl), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
 
@@ -165,6 +172,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(PanRotateOnShiftWheelProperty); }
             set { SetValue(PanRotateOnShiftWheelProperty, value); }
         }
+
         public static readonly DependencyProperty PanRotateOnShiftWheelProperty =
             DependencyProperty.Register(nameof(PanRotateOnShiftWheel), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
 
@@ -173,15 +181,16 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(PanZoomOnCtrlWheelProperty); }
             set { SetValue(PanZoomOnCtrlWheelProperty, value); }
         }
+
         public static readonly DependencyProperty PanZoomOnCtrlWheelProperty =
             DependencyProperty.Register(nameof(PanZoomOnCtrlWheel), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
-
 
         public AttachedDragMoveOptions AttachedDragMove
         {
             get { return (AttachedDragMoveOptions)GetValue(AttachedDragMoveProperty); }
             set { SetValue(AttachedDragMoveProperty, value); }
         }
+
         public static readonly DependencyProperty AttachedDragMoveProperty =
             DependencyProperty.Register(nameof(AttachedDragMove), typeof(AttachedDragMoveOptions), typeof(FlyleafHost), new PropertyMetadata(AttachedDragMoveOptions.Surface));
 
@@ -190,15 +199,16 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(DetachedDragMoveProperty); }
             set { SetValue(DetachedDragMoveProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedDragMoveProperty =
             DependencyProperty.Register(nameof(DetachedDragMove), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
-
 
         public AvailableWindows AttachedResize
         {
             get { return (AvailableWindows)GetValue(AttachedResizeProperty); }
             set { SetValue(AttachedResizeProperty, value); }
         }
+
         public static readonly DependencyProperty AttachedResizeProperty =
             DependencyProperty.Register(nameof(AttachedResize), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
 
@@ -207,6 +217,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(DetachedResizeProperty); }
             set { SetValue(DetachedResizeProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedResizeProperty =
             DependencyProperty.Register(nameof(DetachedResize), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
 
@@ -215,6 +226,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(KeepRatioOnResizeProperty); }
             set { SetValue(KeepRatioOnResizeProperty, value); }
         }
+
         public static readonly DependencyProperty KeepRatioOnResizeProperty =
             DependencyProperty.Register(nameof(KeepRatioOnResize), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(false, new PropertyChangedCallback(OnKeepRatioOnResizeChanged)));
 
@@ -223,6 +235,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (float)GetValue(CurResizeRatioProperty); }
             private set { SetValue(CurResizeRatioProperty, value); }
         }
+
         public static readonly DependencyProperty CurResizeRatioProperty =
             DependencyProperty.Register(nameof(CurResizeRatio), typeof(float), typeof(FlyleafHost), new PropertyMetadata((float)0, new PropertyChangedCallback(OnCurResizeRatioChanged)));
 
@@ -231,15 +244,16 @@ namespace FlyleafLib.Controls.WPF
             get { return (int)GetValue(ResizeSensitivityProperty); }
             set { SetValue(ResizeSensitivityProperty, value); }
         }
+
         public static readonly DependencyProperty ResizeSensitivityProperty =
             DependencyProperty.Register(nameof(ResizeSensitivity), typeof(int), typeof(FlyleafHost), new PropertyMetadata(6));
-
 
         public DetachedPositionOptions DetachedPosition
         {
             get { return (DetachedPositionOptions)GetValue(DetachedPositionProperty); }
             set { SetValue(DetachedPositionProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedPositionProperty =
             DependencyProperty.Register(nameof(DetachedPosition), typeof(DetachedPositionOptions), typeof(FlyleafHost), new PropertyMetadata(DetachedPositionOptions.BottomRight));
 
@@ -248,6 +262,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (Thickness)GetValue(DetachedPositionMarginProperty); }
             set { SetValue(DetachedPositionMarginProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedPositionMarginProperty =
             DependencyProperty.Register(nameof(DetachedPositionMargin), typeof(Thickness), typeof(FlyleafHost), new PropertyMetadata(new Thickness(0, 0, 40, 40)));
 
@@ -256,6 +271,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (Point)GetValue(DetachedFixedPositionProperty); }
             set { SetValue(DetachedFixedPositionProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedFixedPositionProperty =
             DependencyProperty.Register(nameof(DetachedFixedPosition), typeof(Point), typeof(FlyleafHost), new PropertyMetadata(new Point()));
 
@@ -264,6 +280,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (Size)GetValue(DetachedFixedSizeProperty); }
             set { SetValue(DetachedFixedSizeProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedFixedSizeProperty =
             DependencyProperty.Register(nameof(DetachedFixedSize), typeof(Size), typeof(FlyleafHost), new PropertyMetadata(new Size(300, 200)));
 
@@ -272,6 +289,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(DetachedRememberPositionProperty); }
             set { SetValue(DetachedRememberPositionProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedRememberPositionProperty =
             DependencyProperty.Register(nameof(DetachedRememberPosition), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(true));
 
@@ -280,6 +298,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(DetachedRememberSizeProperty); }
             set { SetValue(DetachedRememberSizeProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedRememberSizeProperty =
             DependencyProperty.Register(nameof(DetachedRememberSize), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(true));
 
@@ -288,6 +307,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(DetachedTopMostProperty); }
             set { SetValue(DetachedTopMostProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedTopMostProperty =
             DependencyProperty.Register(nameof(DetachedTopMost), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(false, new PropertyChangedCallback(OnDetachedTopMostChanged)));
 
@@ -296,24 +316,25 @@ namespace FlyleafLib.Controls.WPF
             get { return (AvailableWindows)GetValue(KeyBindingsProperty); }
             set { SetValue(KeyBindingsProperty, value); }
         }
+
         public static readonly DependencyProperty KeyBindingsProperty =
             DependencyProperty.Register(nameof(KeyBindings), typeof(AvailableWindows), typeof(FlyleafHost), new PropertyMetadata(AvailableWindows.Surface));
-
 
         public int ActivityTimeout
         {
             get { return (int)GetValue(ActivityTimeoutProperty); }
             set { SetValue(ActivityTimeoutProperty, value); }
         }
+
         public static readonly DependencyProperty ActivityTimeoutProperty =
             DependencyProperty.Register(nameof(ActivityTimeout), typeof(int), typeof(FlyleafHost), new PropertyMetadata(0, new PropertyChangedCallback(OnActivityTimeoutChanged)));
-
 
         public bool IsAttached
         {
             get { return (bool)GetValue(IsAttachedProperty); }
             set { SetValue(IsAttachedProperty, value); }
         }
+
         public static readonly DependencyProperty IsAttachedProperty =
             DependencyProperty.Register(nameof(IsAttached), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(true, new PropertyChangedCallback(OnIsAttachedChanged)));
 
@@ -322,6 +343,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(IsMinimizedProperty); }
             set { SetValue(IsMinimizedProperty, value); }
         }
+
         public static readonly DependencyProperty IsMinimizedProperty =
             DependencyProperty.Register(nameof(IsMinimized), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(false, new PropertyChangedCallback(OnIsMinimizedChanged)));
 
@@ -330,6 +352,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(IsFullScreenProperty); }
             set { SetValue(IsFullScreenProperty, value); }
         }
+
         public static readonly DependencyProperty IsFullScreenProperty =
             DependencyProperty.Register(nameof(IsFullScreen), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(false, new PropertyChangedCallback(OnIsFullScreenChanged)));
 
@@ -338,6 +361,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(IsResizingProperty); }
             private set { SetValue(IsResizingProperty, value); }
         }
+
         public static readonly DependencyProperty IsResizingProperty =
             DependencyProperty.Register(nameof(IsResizing), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(false));
 
@@ -346,6 +370,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(IsStandAloneProperty); }
             private set { SetValue(IsStandAloneProperty, value); }
         }
+
         public static readonly DependencyProperty IsStandAloneProperty =
             DependencyProperty.Register(nameof(IsStandAlone), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(false));
 
@@ -354,15 +379,16 @@ namespace FlyleafLib.Controls.WPF
             get { return (bool)GetValue(IsSwappingProperty); }
             private set { SetValue(IsSwappingProperty, value); }
         }
+
         public static readonly DependencyProperty IsSwappingProperty =
             DependencyProperty.Register(nameof(IsSwapping), typeof(bool), typeof(FlyleafHost), new PropertyMetadata(false));
-
 
         public FrameworkElement MarginTarget
         {
             get { return (FrameworkElement)GetValue(MarginTargetProperty); }
             set { SetValue(MarginTargetProperty, value); }
         }
+
         public static readonly DependencyProperty MarginTargetProperty =
             DependencyProperty.Register(nameof(MarginTarget), typeof(FrameworkElement), typeof(FlyleafHost), new PropertyMetadata(null));
 
@@ -371,6 +397,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (object)GetValue(HostDataContextProperty); }
             set { SetValue(HostDataContextProperty, value); }
         }
+
         public static readonly DependencyProperty HostDataContextProperty =
             DependencyProperty.Register(nameof(HostDataContext), typeof(object), typeof(FlyleafHost), new PropertyMetadata(null));
 
@@ -379,6 +406,7 @@ namespace FlyleafLib.Controls.WPF
             get { return GetValue(DetachedContentProperty); }
             set { SetValue(DetachedContentProperty, value); }
         }
+
         public static readonly DependencyProperty DetachedContentProperty =
             DependencyProperty.Register(nameof(DetachedContent), typeof(object), typeof(FlyleafHost), new PropertyMetadata(null, new PropertyChangedCallback(OnDetachedContentChanged)));
 
@@ -387,6 +415,7 @@ namespace FlyleafLib.Controls.WPF
             get { return (Player)GetValue(PlayerProperty); }
             set { SetValue(PlayerProperty, value); }
         }
+
         public static readonly DependencyProperty PlayerProperty =
             DependencyProperty.Register(nameof(Player), typeof(Player), typeof(FlyleafHost), new PropertyMetadata(null, OnPlayerChanged));
 
@@ -395,11 +424,14 @@ namespace FlyleafLib.Controls.WPF
             get { return (Window)GetValue(OverlayProperty); }
             set { SetValue(OverlayProperty, value); }
         }
+
         public static readonly DependencyProperty OverlayProperty =
             DependencyProperty.Register(nameof(Overlay), typeof(Window), typeof(FlyleafHost), new PropertyMetadata(null, new PropertyChangedCallback(OnOverlayChanged)));
-        #endregion
+
+        #endregion Dependency Properties
 
         #region Events
+
         private static void OnDetachedTopMostChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (isDesginMode)
@@ -408,6 +440,7 @@ namespace FlyleafLib.Controls.WPF
             FlyleafHost host = d as FlyleafHost;
             host.Surface.Topmost = !host.IsAttached && host.DetachedTopMost;
         }
+
         private static void DropChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             FlyleafHost host = d as FlyleafHost;
@@ -422,6 +455,7 @@ namespace FlyleafLib.Controls.WPF
                 host.OpenOnDrop == AvailableWindows.Overlay || host.OpenOnDrop == AvailableWindows.Both ||
                 host.SwapOnDrop == AvailableWindows.Overlay || host.SwapOnDrop == AvailableWindows.Both;
         }
+
         private static void OnCurResizeRatioChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (isDesginMode)
@@ -446,6 +480,7 @@ namespace FlyleafLib.Controls.WPF
                 host.Surface.Height = host.Surface.Width / host.CurResizeRatio;
             }
         }
+
         private static void OnKeepRatioOnResizeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (isDesginMode)
@@ -453,18 +488,20 @@ namespace FlyleafLib.Controls.WPF
 
             FlyleafHost host = d as FlyleafHost;
             if (host.KeepRatioOnResize)
-                host.CurResizeRatio = host.Player != null && host.Player.Video.AspectRatio.Value > 0 ? host.Player.Video.AspectRatio.Value : (float)(16.0/9.0);
+                host.CurResizeRatio = host.Player != null && host.Player.Video.AspectRatio.Value > 0 ? host.Player.Video.AspectRatio.Value : (float)(16.0 / 9.0);
             else
                 host.CurResizeRatio = 0;
         }
+
         private static void OnPlayerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (isDesginMode)
                 return;
-            
+
             FlyleafHost host = d as FlyleafHost;
             host.SetPlayer((Player)e.OldValue);
         }
+
         private static void OnIsFullScreenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (isDesginMode)
@@ -476,6 +513,7 @@ namespace FlyleafLib.Controls.WPF
             if (host.Player != null)
                 host.Player.IsFullScreen = host.IsFullScreen;
         }
+
         private static void OnIsMinimizedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (isDesginMode)
@@ -484,6 +522,7 @@ namespace FlyleafLib.Controls.WPF
             FlyleafHost host = d as FlyleafHost;
             host.Surface.WindowState = host.IsMinimized ? WindowState.Minimized : (host.IsFullScreen ? WindowState.Maximized : WindowState.Normal);
         }
+
         private static void OnIsAttachedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (isDesginMode)
@@ -502,6 +541,7 @@ namespace FlyleafLib.Controls.WPF
             else
                 host.Detach();
         }
+
         private static void OnDetachedContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             FlyleafHost host = d as FlyleafHost;
@@ -523,6 +563,7 @@ namespace FlyleafLib.Controls.WPF
                 host.preventContentUpdate = false;
             }
         }
+
         private static void OnActivityTimeoutChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             FlyleafHost host = d as FlyleafHost;
@@ -532,6 +573,7 @@ namespace FlyleafLib.Controls.WPF
 
             host.Player.Activity.Timeout = host.ActivityTimeout;
         }
+
         private static void OnOverlayChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             FlyleafHost host = d as FlyleafHost;
@@ -543,6 +585,7 @@ namespace FlyleafLib.Controls.WPF
                 // XSurface.Wpf.Window (can this work on designer?
             }
         }
+
         protected override void OnContentChanged(object oldContent, object newContent) // Can be called before OnApplyTemplate!
         {
             if (isDesginMode)
@@ -586,6 +629,7 @@ namespace FlyleafLib.Controls.WPF
 
             base.OnContentChanged(oldContent, DetachedContent);
         }
+
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
@@ -608,19 +652,20 @@ namespace FlyleafLib.Controls.WPF
                 }
             }
         }
-        
+
         private void Host_Unloaded(object sender, RoutedEventArgs e)
         {
-            LayoutUpdated   -= Host_LayoutUpdated;
-            IsVisibleChanged-= Host_IsVisibleChanged;
+            LayoutUpdated -= Host_LayoutUpdated;
+            IsVisibleChanged -= Host_IsVisibleChanged;
         }
+
         private void Host_Loaded(object sender, RoutedEventArgs e)
         {
             // TODO: Handle owner changed
             var owner = Window.GetWindow(this);
             //if (WPFOwner == owner) return;
-            
-            Owner =  owner;
+
+            Owner = owner;
             OwnerHandle = new WindowInteropHelper(Owner).EnsureHandle();
             matrix = PresentationSource.FromVisual(Owner).CompositionTarget.TransformFromDevice;
             HostDataContext = DataContext;
@@ -648,10 +693,11 @@ namespace FlyleafLib.Controls.WPF
             }
             rectDetachedLast = Rect.Empty;
 
-            LayoutUpdated   += Host_LayoutUpdated;
-            IsVisibleChanged+= Host_IsVisibleChanged;
+            LayoutUpdated += Host_LayoutUpdated;
+            IsVisibleChanged += Host_IsVisibleChanged;
         }
-        private void Host_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e) 
+
+        private void Host_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             // TBR
             // 1. this.DataContext: FlyleafHost's DataContext will not be affected (Inheritance)
@@ -661,6 +707,7 @@ namespace FlyleafLib.Controls.WPF
 
             HostDataContext = DataContext;
         }
+
         private void Host_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             if (!IsAttached)
@@ -677,6 +724,7 @@ namespace FlyleafLib.Controls.WPF
                 Overlay?.Hide();
             }
         }
+
         private void Host_LayoutUpdated(object sender, EventArgs e)
         {
             // Finds Rect Intersect with FlyleafHost's parents and Clips Surface/Overlay (eg. within ScrollViewer)
@@ -731,26 +779,35 @@ namespace FlyleafLib.Controls.WPF
             var pos = matrix.Transform(PointToScreen(zeroPoint));
             SetWindowPos(SurfaceHandle, IntPtr.Zero, (int)(pos.X * DpiX), (int)(pos.Y * DpiY), 0, 0, (UInt32)(SetWindowPosFlags.SWP_NOZORDER | (SetWindowPosFlags.SWP_NOSIZE | SetWindowPosFlags.SWP_NOACTIVATE)));
         }
+
         private void Player_Video_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (KeepRatioOnResize && e.PropertyName == nameof(Player.Video.AspectRatio) && Player.Video.AspectRatio.Value > 0)
                 CurResizeRatio = Player.Video.AspectRatio.Value;
         }
-        #endregion
+
+        #endregion Events
 
         #region Events Surface / Overlay
-        private void Surface_KeyDown(object sender, KeyEventArgs e) { if (KeyBindings == AvailableWindows.Surface || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyDown(Player, e); }
-        private void Overlay_KeyDown(object sender, KeyEventArgs e) { if (KeyBindings == AvailableWindows.Overlay || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyDown(Player, e); }
 
-        private void Surface_KeyUp(object sender, KeyEventArgs e) { if (KeyBindings == AvailableWindows.Surface || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyUp(Player, e); }
-        private void Overlay_KeyUp(object sender, KeyEventArgs e) { if (KeyBindings == AvailableWindows.Overlay || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyUp(Player, e); }
+        private void Surface_KeyDown(object sender, KeyEventArgs e)
+        { if (KeyBindings == AvailableWindows.Surface || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyDown(Player, e); }
+
+        private void Overlay_KeyDown(object sender, KeyEventArgs e)
+        { if (KeyBindings == AvailableWindows.Overlay || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyDown(Player, e); }
+
+        private void Surface_KeyUp(object sender, KeyEventArgs e)
+        { if (KeyBindings == AvailableWindows.Surface || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyUp(Player, e); }
+
+        private void Overlay_KeyUp(object sender, KeyEventArgs e)
+        { if (KeyBindings == AvailableWindows.Overlay || KeyBindings == AvailableWindows.Both) e.Handled = Player.KeyUp(Player, e); }
 
         private void Surface_Drop(object sender, DragEventArgs e)
         {
             IsSwapping = false;
             Surface.ReleaseMouseCapture();
-            FlyleafHostDropWrap hostWrap = (FlyleafHostDropWrap) e.Data.GetData(typeof(FlyleafHostDropWrap));
-            
+            FlyleafHostDropWrap hostWrap = (FlyleafHostDropWrap)e.Data.GetData(typeof(FlyleafHostDropWrap));
+
             // Swap FlyleafHosts
             if (hostWrap != null)
             {
@@ -777,12 +834,13 @@ namespace FlyleafLib.Controls.WPF
                     Player.OpenAsync(text);
             }
         }
+
         private void Overlay_Drop(object sender, DragEventArgs e)
         {
             IsSwapping = false;
             Overlay.ReleaseMouseCapture();
-            FlyleafHostDropWrap hostWrap = (FlyleafHostDropWrap) e.Data.GetData(typeof(FlyleafHostDropWrap));
-            
+            FlyleafHostDropWrap hostWrap = (FlyleafHostDropWrap)e.Data.GetData(typeof(FlyleafHostDropWrap));
+
             // Swap FlyleafHosts
             if (hostWrap != null)
             {
@@ -809,13 +867,18 @@ namespace FlyleafLib.Controls.WPF
                     Player.OpenAsync(text);
             }
         }
-        private void Surface_DragEnter(object sender, DragEventArgs e) { if (Player != null) e.Effects = DragDropEffects.All; }
-        private void Overlay_DragEnter(object sender, DragEventArgs e) { if (Player != null) e.Effects = DragDropEffects.All; }
+
+        private void Surface_DragEnter(object sender, DragEventArgs e)
+        { if (Player != null) e.Effects = DragDropEffects.All; }
+
+        private void Overlay_DragEnter(object sender, DragEventArgs e)
+        { if (Player != null) e.Effects = DragDropEffects.All; }
+
         private void Surface_StateChanged(object sender, EventArgs e)
         {
             if (Overlay != null)
                 Overlay.WindowState = Surface.WindowState;
-         
+
             switch (Surface.WindowState)
             {
                 case WindowState.Maximized:
@@ -843,8 +906,9 @@ namespace FlyleafLib.Controls.WPF
 
             prevSurfaceWindowState = Surface.WindowState;
         }
+
         private void Overlay_StateChanged(object sender, EventArgs e)
-        {       
+        {
             if (Overlay.WindowState == WindowState.Normal && ownedRestoreToMaximize)
             {
                 ownedRestoreToMaximize = false;
@@ -856,12 +920,12 @@ namespace FlyleafLib.Controls.WPF
         {
             mouseLeftDownPoint = e.GetPosition(Surface);
 
-            if ((SwapOnDrop == AvailableWindows.Surface || SwapOnDrop == AvailableWindows.Both) && 
+            if ((SwapOnDrop == AvailableWindows.Surface || SwapOnDrop == AvailableWindows.Both) &&
                 (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift)))
             {
                 IsSwapping = true;
                 DragDrop.DoDragDrop(this, new FlyleafHostDropWrap() { FlyleafHost = this }, DragDropEffects.Move);
-                
+
                 return;
             }
 
@@ -883,16 +947,17 @@ namespace FlyleafLib.Controls.WPF
 
             Surface.CaptureMouse();
         }
+
         private void Overlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             mouseLeftDownPoint = e.GetPosition(Overlay);
-            
-            if ((SwapOnDrop == AvailableWindows.Overlay || SwapOnDrop == AvailableWindows.Both) && 
+
+            if ((SwapOnDrop == AvailableWindows.Overlay || SwapOnDrop == AvailableWindows.Both) &&
                 (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift)))
             {
                 IsSwapping = true;
                 DragDrop.DoDragDrop(this, new FlyleafHostDropWrap() { FlyleafHost = this }, DragDropEffects.Move);
-                
+
                 return;
             }
 
@@ -928,6 +993,7 @@ namespace FlyleafLib.Controls.WPF
             IsSwapping = false;
             Surface.ReleaseMouseCapture();
         }
+
         private void Overlay_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             if (IsResizing)
@@ -945,7 +1011,7 @@ namespace FlyleafLib.Controls.WPF
         private void Surface_MouseMove(object sender, MouseEventArgs e)
         {
             Point cur = e.GetPosition(Overlay);
-             
+
             if (Player != null && cur != mouseMoveLastPoint)
             {
                 Player.Activity.RefreshFullActive();
@@ -955,7 +1021,7 @@ namespace FlyleafLib.Controls.WPF
             // Resize Sides (CanResize + !MouseDown + !FullScreen)
             if (e.MouseDevice.LeftButton != MouseButtonState.Pressed)
             {
-                if ( Surface.WindowState != WindowState.Maximized && 
+                if (Surface.WindowState != WindowState.Maximized &&
                     ((IsAttached && (AttachedResize == AvailableWindows.Surface || AttachedResize == AvailableWindows.Both)) ||
                     (!IsAttached && (DetachedResize == AvailableWindows.Surface || DetachedResize == AvailableWindows.Both))))
                 {
@@ -975,7 +1041,7 @@ namespace FlyleafLib.Controls.WPF
                 if (IsAttached)
                 {
                     Point x2 = new Point(Surface.Left, Surface.Top);
-                    
+
                     MarginTarget.Margin = new Thickness(MarginTarget.Margin.Left + x2.X - x1.X, MarginTarget.Margin.Top + x2.Y - x1.Y, MarginTarget.Margin.Right, MarginTarget.Margin.Bottom);
                     Width = Surface.Width;
                     Height = Surface.Height;
@@ -987,12 +1053,12 @@ namespace FlyleafLib.Controls.WPF
                 return;
 
             // Player's Pan Move (Ctrl + Drag Move)
-            else if (Player != null && 
+            else if (Player != null &&
                 (PanMoveOnCtrl == AvailableWindows.Surface || PanMoveOnCtrl == AvailableWindows.Both) &&
                 (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)))
             {
-                Player.PanXOffset = panPrevX + (int) (cur.X - mouseLeftDownPoint.X);
-                Player.PanYOffset = panPrevY + (int) (cur.Y - mouseLeftDownPoint.Y);
+                Player.PanXOffset = panPrevX + (int)(cur.X - mouseLeftDownPoint.X);
+                Player.PanYOffset = panPrevY + (int)(cur.Y - mouseLeftDownPoint.Y);
             }
 
             // Drag Move Self (Detached) / Self (Attached) / Owner (Attached)
@@ -1013,20 +1079,22 @@ namespace FlyleafLib.Controls.WPF
                         // TBR: Bug with right click (popup menu) and then left click drag
                         MarginTarget.Margin = new Thickness(MarginTarget.Margin.Left + cur.X - mouseLeftDownPoint.X, MarginTarget.Margin.Top + cur.Y - mouseLeftDownPoint.Y, MarginTarget.Margin.Right, MarginTarget.Margin.Bottom);
                     }
-                } else
+                }
+                else
                 {
                     if (DetachedDragMove == AvailableWindows.Surface || DetachedDragMove == AvailableWindows.Both)
                     {
-                        Surface.Left  += cur.X - mouseLeftDownPoint.X;
-                        Surface.Top   += cur.Y - mouseLeftDownPoint.Y;
+                        Surface.Left += cur.X - mouseLeftDownPoint.X;
+                        Surface.Top += cur.Y - mouseLeftDownPoint.Y;
                     }
                 }
             }
         }
+
         private void Overlay_MouseMove(object sender, MouseEventArgs e)
         {
             Point cur = e.GetPosition(Overlay);
-             
+
             if (Player != null && cur != mouseMoveLastPoint)
             {
                 Player.Activity.RefreshFullActive();
@@ -1036,7 +1104,7 @@ namespace FlyleafLib.Controls.WPF
             // Resize Sides (CanResize + !MouseDown + !FullScreen)
             if (e.MouseDevice.LeftButton != MouseButtonState.Pressed)
             {
-                if ( Overlay.WindowState != WindowState.Maximized && 
+                if (Overlay.WindowState != WindowState.Maximized &&
                     ((IsAttached && (AttachedResize == AvailableWindows.Overlay || AttachedResize == AvailableWindows.Both)) ||
                     (!IsAttached && (DetachedResize == AvailableWindows.Overlay || DetachedResize == AvailableWindows.Both))))
                 {
@@ -1056,7 +1124,7 @@ namespace FlyleafLib.Controls.WPF
                 if (IsAttached)
                 {
                     Point x2 = new Point(Overlay.Left, Overlay.Top);
-                    
+
                     MarginTarget.Margin = new Thickness(MarginTarget.Margin.Left + x2.X - x1.X, MarginTarget.Margin.Top + x2.Y - x1.Y, MarginTarget.Margin.Right, MarginTarget.Margin.Bottom);
                     Width = Overlay.Width;
                     Height = Overlay.Height;
@@ -1068,12 +1136,12 @@ namespace FlyleafLib.Controls.WPF
                 return;
 
             // Player's Pan Move (Ctrl + Drag Move)
-            else if (Player != null && 
+            else if (Player != null &&
                 (PanMoveOnCtrl == AvailableWindows.Overlay || PanMoveOnCtrl == AvailableWindows.Both) &&
                 (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)))
             {
-                Player.PanXOffset = panPrevX + (int) (cur.X - mouseLeftDownPoint.X);
-                Player.PanYOffset = panPrevY + (int) (cur.Y - mouseLeftDownPoint.Y);
+                Player.PanXOffset = panPrevX + (int)(cur.X - mouseLeftDownPoint.X);
+                Player.PanYOffset = panPrevY + (int)(cur.Y - mouseLeftDownPoint.Y);
             }
 
             // Drag Move Self (Detached) / Self (Attached) / Owner (Attached)
@@ -1094,29 +1162,36 @@ namespace FlyleafLib.Controls.WPF
                         // TBR: Bug with right click (popup menu) and then left click drag
                         MarginTarget.Margin = new Thickness(MarginTarget.Margin.Left + cur.X - mouseLeftDownPoint.X, MarginTarget.Margin.Top + cur.Y - mouseLeftDownPoint.Y, MarginTarget.Margin.Right, MarginTarget.Margin.Bottom);
                     }
-                } else
+                }
+                else
                 {
                     if (DetachedDragMove == AvailableWindows.Overlay || DetachedDragMove == AvailableWindows.Both)
                     {
-                        Overlay.Left  += cur.X - mouseLeftDownPoint.X;
-                        Overlay.Top   += cur.Y - mouseLeftDownPoint.Y;
+                        Overlay.Left += cur.X - mouseLeftDownPoint.X;
+                        Overlay.Top += cur.Y - mouseLeftDownPoint.Y;
                     }
                 }
             }
         }
 
-        private void Surface_MouseLeave(object sender, MouseEventArgs e) { ResizingSide = 0; Surface.Cursor = Cursors.Arrow; }
-        private void Overlay_MouseLeave(object sender, MouseEventArgs e) { ResizingSide = 0; Overlay.Cursor = Cursors.Arrow; }
+        private void Surface_MouseLeave(object sender, MouseEventArgs e)
+        { ResizingSide = 0; Surface.Cursor = Cursors.Arrow; }
 
-        private void Surface_MouseDoubleClick(object sender, MouseButtonEventArgs e) { if (ToggleFullScreenOnDoubleClick == AvailableWindows.Surface || ToggleFullScreenOnDoubleClick == AvailableWindows.Both) { IsFullScreen = !IsFullScreen; e.Handled = true; } }
-        private void Overlay_MouseDoubleClick(object sender, MouseButtonEventArgs e) { if (ToggleFullScreenOnDoubleClick == AvailableWindows.Overlay || ToggleFullScreenOnDoubleClick == AvailableWindows.Both) { IsFullScreen = !IsFullScreen; e.Handled = true; } }
+        private void Overlay_MouseLeave(object sender, MouseEventArgs e)
+        { ResizingSide = 0; Overlay.Cursor = Cursors.Arrow; }
+
+        private void Surface_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        { if (ToggleFullScreenOnDoubleClick == AvailableWindows.Surface || ToggleFullScreenOnDoubleClick == AvailableWindows.Both) { IsFullScreen = !IsFullScreen; e.Handled = true; } }
+
+        private void Overlay_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        { if (ToggleFullScreenOnDoubleClick == AvailableWindows.Overlay || ToggleFullScreenOnDoubleClick == AvailableWindows.Both) { IsFullScreen = !IsFullScreen; e.Handled = true; } }
 
         private void Surface_MouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (Player == null || e.Delta == 0)
                 return;
 
-            if      ((Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)) &&
+            if ((Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)) &&
                 (PanZoomOnCtrlWheel == AvailableWindows.Surface || PanZoomOnCtrlWheel == AvailableWindows.Both))
             {
                 Player.Zoom += e.Delta > 0 ? Player.Config.Player.ZoomOffset : -Player.Config.Player.ZoomOffset;
@@ -1135,12 +1210,13 @@ namespace FlyleafLib.Controls.WPF
             //    RaiseEvent(e);
             //}
         }
+
         private void Overlay_MouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (Player == null || e.Delta == 0)
                 return;
 
-            if      ((Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)) &&
+            if ((Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)) &&
                 (PanZoomOnCtrlWheel == AvailableWindows.Overlay || PanZoomOnCtrlWheel == AvailableWindows.Both))
             {
                 Player.Zoom += e.Delta > 0 ? Player.Config.Player.ZoomOffset : -Player.Config.Player.ZoomOffset;
@@ -1155,8 +1231,11 @@ namespace FlyleafLib.Controls.WPF
             }
         }
 
-        private void Surface_Closing(object sender, CancelEventArgs e) { isSurfaceClosing = true; Dispose(); }
-        private void Overlay_Closing(object sender, CancelEventArgs e) { if (isSurfaceClosing) return; e.Cancel = true; Surface.Close(); }
+        private void Surface_Closing(object sender, CancelEventArgs e)
+        { isSurfaceClosing = true; Dispose(); }
+
+        private void Overlay_Closing(object sender, CancelEventArgs e)
+        { if (isSurfaceClosing) return; e.Cancel = true; Surface.Close(); }
 
         private void Overlay_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         { // Stand Alone Only (Main control has the overlay)
@@ -1169,6 +1248,7 @@ namespace FlyleafLib.Controls.WPF
                 Surface?.Hide();
             }
         }
+
         private void Overlay_Loaded(object sender, RoutedEventArgs e)
         {
             if (Overlay.IsVisible)
@@ -1242,6 +1322,7 @@ namespace FlyleafLib.Controls.WPF
             else
                 SetWindowPos(WindowHandle, IntPtr.Zero, (int)(WindowLeft * DpiX), (int)(WindowTop * DpiY), (int)(WindowWidth * DpiX), (int)((WindowWidth / ratio) * DpiY), (UInt32)(SetWindowPosFlags.SWP_NOZORDER | SetWindowPosFlags.SWP_NOACTIVATE));
         }
+
         public static int ResizeSides(Window Window, Point p, int ResizeSensitivity)
         {
             if (p.X <= ResizeSensitivity && p.Y <= ResizeSensitivity)
@@ -1290,13 +1371,16 @@ namespace FlyleafLib.Controls.WPF
                 return 0;
             }
         }
-        #endregion
+
+        #endregion Events Surface / Overlay
 
         #region Constructors
+
         static FlyleafHost()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(FlyleafHost), new FrameworkPropertyMetadata(typeof(FlyleafHost)));
         }
+
         public FlyleafHost()
         {
             UniqueId = idGenerator++;
@@ -1304,10 +1388,10 @@ namespace FlyleafLib.Controls.WPF
             //isDesginMode = true;
             if (isDesginMode)
             {
-                dMain   = new Grid();
-                dHost   = new Grid();
-                dSurface= new Grid();
-                dOverlay= new Grid();
+                dMain = new Grid();
+                dHost = new Grid();
+                dSurface = new Grid();
+                dOverlay = new Grid();
 
                 Panel.SetZIndex(dHost, 0);
                 Panel.SetZIndex(dSurface, 1);
@@ -1323,13 +1407,14 @@ namespace FlyleafLib.Controls.WPF
             MarginTarget = this;
 
             Log = new LogHandler(("[#" + UniqueId + "]").PadRight(8, ' ') + $" [FlyleafHost NP] ");
-            Loaded      += Host_Loaded; // Initialized event ??
-            Unloaded    += Host_Unloaded;
-            DataContextChanged 
+            Loaded += Host_Loaded; // Initialized event ??
+            Unloaded += Host_Unloaded;
+            DataContextChanged
                         += Host_DataContextChanged;
 
             SetSurface();
         }
+
         public FlyleafHost(Window standAloneOverlay)
         {
             UniqueId = idGenerator++;
@@ -1340,9 +1425,11 @@ namespace FlyleafLib.Controls.WPF
             SetSurface();
             Overlay = standAloneOverlay;
         }
-        #endregion
+
+        #endregion Constructors
 
         #region Methods
+
         public virtual void SetPlayer(Player oldPlayer)
         {
             // De-assign old Player's Handle/FlyleafHost
@@ -1367,7 +1454,7 @@ namespace FlyleafLib.Controls.WPF
 
             if (Player == null) // We might just de-assign our Player
                 return;
-            
+
             // Assign new Player's (Handle/FlyleafHost)
             Log.Debug($"Assign Player #{Player.PlayerId}");
 
@@ -1382,41 +1469,43 @@ namespace FlyleafLib.Controls.WPF
             if (KeepRatioOnResize && Player.Video.AspectRatio.Value > 0)
                 CurResizeRatio = Player.Video.AspectRatio.Value;
         }
+
         public virtual void SetSurface()
         {
             Surface = new Window();
             Surface.ShowInTaskbar = IsStandAlone;
-            Surface.Background  = Brushes.Black;
+            Surface.Background = Brushes.Black;
             Surface.WindowStyle = WindowStyle.None;
-            Surface.ResizeMode  = ResizeMode.NoResize;
-            Surface.Width       = Surface.Height = 1; // Will be set on loaded
+            Surface.ResizeMode = ResizeMode.NoResize;
+            Surface.Width = Surface.Height = 1; // Will be set on loaded
 
-            SurfaceHandle       = new WindowInteropHelper(Surface).EnsureHandle();
+            SurfaceHandle = new WindowInteropHelper(Surface).EnsureHandle();
 
-            Surface.Closing     += Surface_Closing;
-            Surface.KeyDown     += Surface_KeyDown;
-            Surface.KeyUp       += Surface_KeyUp;
+            Surface.Closing += Surface_Closing;
+            Surface.KeyDown += Surface_KeyDown;
+            Surface.KeyUp += Surface_KeyUp;
             Surface.MouseLeftButtonDown
                                 += Surface_MouseLeftButtonDown;
             Surface.MouseLeftButtonUp
                                 += Surface_MouseLeftButtonUp;
-            Surface.MouseMove   += Surface_MouseMove;
+            Surface.MouseMove += Surface_MouseMove;
             Surface.MouseDoubleClick
                                 += Surface_MouseDoubleClick;
-            Surface.DragEnter   += Surface_DragEnter;
-            Surface.Drop        += Surface_Drop;
-            Surface.MouseWheel  += Surface_MouseWheel;
-            Surface.StateChanged+= Surface_StateChanged;
-            Surface.MouseLeave  += Surface_MouseLeave;
+            Surface.DragEnter += Surface_DragEnter;
+            Surface.Drop += Surface_Drop;
+            Surface.MouseWheel += Surface_MouseWheel;
+            Surface.StateChanged += Surface_StateChanged;
+            Surface.MouseLeave += Surface_MouseLeave;
 
             Surface.AllowDrop =
                 OpenOnDrop == AvailableWindows.Surface || OpenOnDrop == AvailableWindows.Both ||
                 SwapOnDrop == AvailableWindows.Surface || SwapOnDrop == AvailableWindows.Both;
         }
+
         public virtual void SetOverlay()
         {
             //if (OverlayHandle == new WindowInteropHelper(overlay).Handle) // Don't create it yet
-                //DisposeOverlay();
+            //DisposeOverlay();
 
             if (Overlay == null)
                 return;
@@ -1441,12 +1530,12 @@ namespace FlyleafLib.Controls.WPF
 
             if (IsStandAlone)
             {
-                Overlay.IsVisibleChanged 
+                Overlay.IsVisibleChanged
                                 += Overlay_IsVisibleChanged;
-                Overlay.Loaded  += Overlay_Loaded;
-                Surface.Width   = Overlay.Width;
-                Surface.Height  = Overlay.Height;
-                Surface.Icon    = Overlay.Icon;
+                Overlay.Loaded += Overlay_Loaded;
+                Surface.Width = Overlay.Width;
+                Surface.Height = Overlay.Height;
+                Surface.Icon = Overlay.Icon;
             }
             else
             {
@@ -1455,30 +1544,30 @@ namespace FlyleafLib.Controls.WPF
                 Overlay.Width = Overlay.Height = 1; // Will be set on loaded
             }
 
-            Overlay.SetBinding(Window.MinWidthProperty,     new Binding(nameof(Surface.MinWidth))   { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
-            Overlay.SetBinding(Window.MaxWidthProperty,     new Binding(nameof(Surface.MaxWidth))   { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
-            Overlay.SetBinding(Window.MinHeightProperty,    new Binding(nameof(Surface.MinHeight))  { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
-            Overlay.SetBinding(Window.MaxHeightProperty,    new Binding(nameof(Surface.MaxHeight))  { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
-            Overlay.SetBinding(Window.WidthProperty,        new Binding(nameof(Surface.Width))      { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
-            Overlay.SetBinding(Window.HeightProperty,       new Binding(nameof(Surface.Height))     { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
-            Overlay.SetBinding(Window.LeftProperty,         new Binding(nameof(Surface.Left))       { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
-            Overlay.SetBinding(Window.TopProperty,          new Binding(nameof(Surface.Top))        { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.MinWidthProperty, new Binding(nameof(Surface.MinWidth)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.MaxWidthProperty, new Binding(nameof(Surface.MaxWidth)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.MinHeightProperty, new Binding(nameof(Surface.MinHeight)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.MaxHeightProperty, new Binding(nameof(Surface.MaxHeight)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.WidthProperty, new Binding(nameof(Surface.Width)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.HeightProperty, new Binding(nameof(Surface.Height)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.LeftProperty, new Binding(nameof(Surface.Left)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
+            Overlay.SetBinding(Window.TopProperty, new Binding(nameof(Surface.Top)) { Source = Surface, Mode = System.Windows.Data.BindingMode.TwoWay });
 
-            Overlay.KeyUp       += Overlay_KeyUp;
-            Overlay.KeyDown     += Overlay_KeyDown;
-            Overlay.Closing     += Overlay_Closing;
-            Overlay.MouseLeftButtonDown
-                                += Overlay_MouseLeftButtonDown;
-            Overlay.MouseLeftButtonUp
-                                += Overlay_MouseLeftButtonUp;
-            Overlay.MouseWheel  += Overlay_MouseWheel;
-            Overlay.MouseMove   += Overlay_MouseMove;
-            Overlay.MouseLeave  += Overlay_MouseLeave;
-            Overlay.MouseDoubleClick
-                                += Overlay_MouseDoubleClick;
-            Overlay.Drop        += Overlay_Drop;
-            Overlay.DragEnter   += Overlay_DragEnter;
-            Overlay.StateChanged+= Overlay_StateChanged;
+            Overlay.KeyUp += Overlay_KeyUp;
+            Overlay.KeyDown += Overlay_KeyDown;
+            Overlay.Closing += Overlay_Closing;
+            //Overlay.MouseLeftButtonDown
+            //                    += Overlay_MouseLeftButtonDown;
+            //Overlay.MouseLeftButtonUp
+            //                    += Overlay_MouseLeftButtonUp;
+            //Overlay.MouseWheel  += Overlay_MouseWheel;
+            //Overlay.MouseMove   += Overlay_MouseMove;
+            //Overlay.MouseLeave  += Overlay_MouseLeave;
+            //Overlay.MouseDoubleClick
+            //                    += Overlay_MouseDoubleClick;
+            //Overlay.Drop        += Overlay_Drop;
+            Overlay.DragEnter += Overlay_DragEnter;
+            Overlay.StateChanged += Overlay_StateChanged;
 
             // Owner will close the overlay
             Overlay.KeyDown += (o, e) => { if (e.Key == Key.System && e.SystemKey == Key.F4) Surface?.Focus(); };
@@ -1510,6 +1599,7 @@ namespace FlyleafLib.Controls.WPF
             rectInitLast = rectIntersectLast = rectRandom;
             Host_LayoutUpdated(null, null);
         }
+
         public virtual void Detach()
         {
             if (IsFullScreen)
@@ -1537,6 +1627,7 @@ namespace FlyleafLib.Controls.WPF
                     case DetachedPositionOptions.TopLeft:
                         newPos = new Point(screen.Left, screen.Top);
                         break;
+
                     case DetachedPositionOptions.TopCenter:
                         newPos = new Point(screen.Left + (screen.Width / 2) - (newSize.Width / 2), screen.Top);
                         break;
@@ -1609,9 +1700,9 @@ namespace FlyleafLib.Controls.WPF
                 else
                 {
                     beforeFullScreenPos = new Point(Surface.Left, Surface.Top);
-                    beforeFullScreenSize= new Size(Surface.ActualWidth, Surface.ActualHeight);
+                    beforeFullScreenSize = new Size(Surface.ActualWidth, Surface.ActualHeight);
                 }
-                
+
                 Surface.WindowState = WindowState.Maximized;
             }
             else
@@ -1625,23 +1716,26 @@ namespace FlyleafLib.Controls.WPF
                 }
                 else
                 {
-                    Surface.Left    = beforeFullScreenPos.X;
-                    Surface.Top     = beforeFullScreenPos.Y;
-                    Surface.Width   = beforeFullScreenSize.Width;
-                    Surface.Height  = beforeFullScreenSize.Height;
+                    Surface.Left = beforeFullScreenPos.X;
+                    Surface.Top = beforeFullScreenPos.Y;
+                    Surface.Width = beforeFullScreenSize.Width;
+                    Surface.Height = beforeFullScreenSize.Height;
                 }
             }
         }
+
         public void SetRect(Rect rect)
         {
             SetWindowPos(SurfaceHandle, IntPtr.Zero, (int)(rect.X * DpiX), (int)(rect.Y * DpiY), (int)(rect.Width * DpiX), (int)(rect.Height * DpiY), (UInt32)(SetWindowPosFlags.SWP_NOZORDER | SetWindowPosFlags.SWP_NOACTIVATE));
         }
+
         public void ReSetVisibleRect()
         {
             SetWindowRgn(SurfaceHandle, IntPtr.Zero, true);
             if (OverlayHandle != IntPtr.Zero)
                 SetWindowRgn(OverlayHandle, IntPtr.Zero, true);
         }
+
         public void SetVisibleRect(Rect rect)
         {
             SetWindowRgn(SurfaceHandle, CreateRectRgn((int)(rect.X * DpiX), (int)(rect.Y * DpiY), (int)(rect.Right * DpiX), (int)(rect.Bottom * DpiY)), true);
@@ -1677,17 +1771,18 @@ namespace FlyleafLib.Controls.WPF
                     Player.Dispose();
                 }
 
-                SurfaceHandle   = IntPtr.Zero;
-                OverlayHandle   = IntPtr.Zero;
-                OwnerHandle     = IntPtr.Zero;
+                SurfaceHandle = IntPtr.Zero;
+                OverlayHandle = IntPtr.Zero;
+                OwnerHandle = IntPtr.Zero;
 
                 Surface = null;
                 Overlay = null;
-                Owner   = null;
-                Player  = null;
+                Owner = null;
+                Player = null;
             }
         }
-        #endregion
+
+        #endregion Methods
     }
 
     public enum AvailableWindows
